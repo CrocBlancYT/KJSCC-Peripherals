@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "kubejs:block/active_protection_system", "y": 0 },
+    "facing=east": { "model": "kubejs:block/active_protection_system", "y": 90 },
+    "facing=south": { "model": "kubejs:block/active_protection_system", "y": 180 },
+    "facing=west": { "model": "kubejs:block/active_protection_system", "y": 270 }
+  }
+}

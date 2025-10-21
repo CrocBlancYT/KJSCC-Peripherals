@@ -2,8 +2,8 @@
   "credit": "Made with Blockbench",
   "parent": "minecraft:block/cube_all",
   "textures": {
-    "0": "kubejs:block/raycaster_texture",
-    "particle": "kubejs:block/raycaster_texture"
+    "0": "kubejs:block/raycaster",
+    "particle": "kubejs:block/raycaster"
   },
   "elements": [
     {

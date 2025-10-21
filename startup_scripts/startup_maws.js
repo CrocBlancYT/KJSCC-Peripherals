@@ -24,13 +24,12 @@ ComputerCraftEvents.peripheral(event => {
     event.registerPeripheral(PeripheralName, BlockId)
     .mainThreadMethod("detect", (block, d, args) => {
         const [range] = args
-        const halfRange = range/2
 
-        if (halfRange < 0) { halfRange = 0 }
-        if (halfRange > maxRange) { halfRange = maxRange }
-
+        if (range < 0) { range = 0 }
+        if (range > maxRange) { range = maxRange }
+        
         const {x, y, z} = block
-        const box = AABB.of(x-halfRange, y-halfRange, z-halfRange, x+halfRange, y+halfRange, z+halfRange)
+        const box = AABB.of(x-range, y-range, z-range, x+range, y+range, z+range)
         const entities = block.level.getEntitiesWithin(box)
 
         const missiles = getMissiles(entities)
@@ -66,7 +65,7 @@ StartupEvents.registry("block", (event) => {
     .model('kubejs:block/maws')
     
     .item(item => {
-        item.tooltip(Text.of('§8Detects missile launches'))
+        item.tooltip(Text.of('§8Detects nearby missiles'))
     })
 })
 

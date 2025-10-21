@@ -1,46 +1,61 @@
 
-local threads = {}
+-- (256 threads max)
 
--- threads are stacked in run (256 threads max)
-local function run()
-    local event, id = os.pullEvent("new_thread")
-    local func = threads[id]
-    threads[id] = nil
-    parallel.waitForAll(func, run)
-end
+-- private methods
 
-local function killThread(thread)
-    assert(type(thread)=="table", "no thread given")
-    assert(thread.id, "do thread:kill()")
-    
-    os.queueEvent('kill_thread', thread.id)
-end
-
-local function newThread(func)
-    assert(func, "function missing")
-
-    local id = os.clock() + math.random()
-    local handle = {id=id}
-
-    threads[id] = function ()
-        parallel.waitForAny(function()
-            func(handle)
-        end, function ()
-            local event, thread_id
-            repeat event, thread_id = os.pullEvent("kill_thread")
-            until id == thread_id
+local function getRunning(id, callback)
+    return function()
+        parallel.waitForAny(callback, function()
+            os.pullEvent('threads.stop.'..id..':'..tostring(callback))
         end)
     end
-
-    os.queueEvent('new_thread', id)
-
-    return {
-        kill=killThread,
-        handle=handle,
-        id=id,
-    }
 end
 
+local function getNextCallback(id)
+    local event, address = os.pullEvent('threads.start.'..id)
+    local nextCallback = _G[address]
+    _G[address] = nil
+    return nextCallback
+end
 
+local function listen(id)
+    local callback = getNextCallback(id)
+    local running = getRunning(id, callback)
+    local nextListen = function() listen(id) end
+    
+    parallel.waitForAll(running, nextListen)
+end
 
-return {run=run, newThread=newThread}
+local function stop(thread)
+    assert((type(thread) == "table") and (thread.id) and (thread.callback), "bad argument #1 'thread' (table expected, got "..type(thread)..")")
+    
+    local id = thread.id
+    local callback = thread.callback
+    local address = tostring(callback)
+    os.queueEvent('threads.stop.'..id..':'..address)
+end
+
+local function start(id, callback)
+    local address = tostring(callback)
+    _G[address] = callback
+    os.queueEvent('threads.start.'..id, address)
+    return {id=id, callback=callback, stop=stop}
+end
+
+-- public methods
+
+local threads = {}
+
+function threads.init(id)
+    assert((type(id) == "string"), "bad argument #1 'id' (string expected, got "..type(id)..")")
+    listen(id)
+end
+
+function threads.start(id, callback)
+    assert((type(id) == "string"), "bad argument #1 'id' (string expected, got "..type(id)..")")
+    assert((type(callback) == "function"), "bad argument #2 'callback' (function expected, got "..type(callback)..")")
+    
+    return start(id, callback)
+end
+
+return threads

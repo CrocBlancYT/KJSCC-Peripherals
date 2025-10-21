@@ -1,6 +1,11 @@
 // priority: 0
 
-let VSGameUtils = Java.loadClass("org.valkyrienskies.mod.common.VSGameUtilsKt");
+function getShipManagingPosUnsafe(world, pos) {
+    let x = pos.x / 16
+    let z = pos.z / 16
+    let dimensionId = world.getDimensionId()
+    return world.server.getShipObjectWorld().getAllShips().getByChunkPos(x, z, dimensionId)
+}
 
 ComputerCraftEvents.peripheral(event => {
     const BlockId = "kubejs:weapons_manager"
@@ -73,8 +78,8 @@ ComputerCraftEvents.peripheral(event => {
         return true
     })
     .mainThreadMethod("fire", (block, d, args) => {
-        const ship = VSGameUtils.getShipObjectManagingPos(block.level, block.pos)
-
+        const ship = getShipManagingPosUnsafe(block.level, block.pos)
+        
         const [uuid] = args
         const missile = getNearbyFromUUID(block, uuid)
 

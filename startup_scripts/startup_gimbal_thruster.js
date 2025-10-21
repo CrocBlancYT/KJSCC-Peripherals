@@ -1,10 +1,17 @@
 // priority: 0
 
-let VSGameUtils = Java.loadClass("org.valkyrienskies.mod.common.VSGameUtilsKt");
+/*
 let QueuedForcesApplier = Java.loadClass("io.github.techtastic.cc_vs.ship.QueuedForcesApplier").Companion
 let Vector3d = Java.loadClass("org.joml.Vector3d")
 
 // add fuel consumption
+
+function getShipManagingPosUnsafe(world, pos) {
+    let x = pos.x / 16
+    let z = pos.z / 16
+    let dimensionId = world.getDimensionId()
+    return world.server.getShipObjectWorld().getAllShips().getByChunkPos(x, z, dimensionId)
+}
 
 function clamp(force, limit) {
     if (force > limit) { return limit }
@@ -38,7 +45,7 @@ ComputerCraftEvents.peripheral(event => {
     
     event.registerPeripheral(PeripheralName, BlockId)
     .mainThreadMethod("push", (block, d, args) => {
-        const ship = VSGameUtils.getShipObjectManagingPos(block.level, block.pos);
+        const ship = getShipManagingPosUnsafe(block.level, block.pos);
         const control = QueuedForcesApplier.getOrCreateControl(ship)
         
         const pos = getOffsetInShipyard(ship, block)
@@ -48,3 +55,4 @@ ComputerCraftEvents.peripheral(event => {
         return
     })
 })
+*/

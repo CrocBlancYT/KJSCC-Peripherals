@@ -1,12 +1,18 @@
 // priority: 0
 
-let VSGameUtils = Java.loadClass("org.valkyrienskies.mod.common.VSGameUtilsKt");
 let QueuedForcesApplier = Java.loadClass("io.github.techtastic.cc_vs.ship.QueuedForcesApplier").Companion
 let Vector3d = Java.loadClass("org.joml.Vector3d")
 
 let Vec3 = Java.loadClass('net.minecraft.world.phys.Vec3')
 let ClipContext = Java.loadClass('net.minecraft.world.level.ClipContext')
 let CollisionContext = Java.loadClass('net.minecraft.world.phys.shapes.CollisionContext')
+
+function getShipManagingPosUnsafe(world, pos) {
+    let x = pos.x / 16
+    let z = pos.z / 16
+    let dimensionId = world.getDimensionId()
+    return world.server.getShipObjectWorld().getAllShips().getByChunkPos(x, z, dimensionId)
+}
 
 ComputerCraftEvents.peripheral(event => {
     const BlockId = "kubejs:raycaster"
@@ -46,7 +52,7 @@ ComputerCraftEvents.peripheral(event => {
             .add(startPos).add(offset).add(Vector3d(dx,dy,dz))
             
 
-        const ship = VSGameUtils.getShipObjectManagingPos(block.level, block.pos);
+        const ship = getShipManagingPosUnsafe(block.level, block.pos);
 
         if (ship) {
             ship.transform.shipToWorld.transformPosition(startPos)
@@ -87,7 +93,7 @@ StartupEvents.registry("block", (event) => {
     .displayName("Raycaster")
     .soundType("stone")
     .resistance(5.0)
-
+    
     .renderType('cutout')
     .viewBlocking(true)
     .fullBlock(true)

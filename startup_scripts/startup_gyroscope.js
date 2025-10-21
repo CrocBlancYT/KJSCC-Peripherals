@@ -1,10 +1,17 @@
+
 // priority: 0
 
-let VSGameUtils = Java.loadClass("org.valkyrienskies.mod.common.VSGameUtilsKt");
 let QueuedForcesApplier = Java.loadClass("io.github.techtastic.cc_vs.ship.QueuedForcesApplier").Companion
 let Vector3d = Java.loadClass("org.joml.Vector3d")
 
 // add energy consumption
+
+function getShipManagingPosUnsafe(world, pos) {
+    let x = pos.x / 16
+    let z = pos.z / 16
+    let dimensionId = world.getDimensionId()
+    return world.server.getShipObjectWorld().getAllShips().getByChunkPos(x, z, dimensionId)
+}
 
 function clamp(force, limit) {
     if (force > limit) { return limit }
@@ -35,8 +42,8 @@ ComputerCraftEvents.peripheral(event =>{
     const max_angularForce = 3000000 * 0.05
     
     event.registerPeripheral(PeripheralName, BlockId)
-    .mainThreadMethod("rotate", (block, d, args) => {
-        const ship = VSGameUtils.getShipObjectManagingPos(block.level, block.pos);
+    .mainThreadMethod("rotate", (block, d, args) => {        
+        const ship = getShipManagingPosUnsafe(block.level, block.pos)
         const control = QueuedForcesApplier.getOrCreateControl(ship)
         
         // const pos = getOffsetInShipyard(ship, block)
@@ -56,9 +63,10 @@ StartupEvents.registry("block", (event) => {
     .viewBlocking(true)
     .fullBlock(true)
     
-    .model('kubejs:block/gyroscope')
+    .model('kubejs:block/gyro')
     
     .item(item => {
         item.tooltip(Text.of('§8Controls the angular acceleration'))
     })
 })
+

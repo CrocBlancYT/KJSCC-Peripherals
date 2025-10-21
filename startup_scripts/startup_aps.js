@@ -1,48 +1,63 @@
 // priority: 0
 // active protection system
-// note: allow shooting tows + add redstone compat + APS ammunition
 
 // detection area
 const width = 45
 const over = 10
 const under = 2
 
+const maxCharges = 2
+
+const loadingCooldown = 5
+const shootingCooldown = 5
+
 // shooting criterias
 const maxSpeed = 300
-const cooldown = 8
-const target_shells = [
-    "createbigcannons:he_shell", // HE
-    "cbcmodernwarfare:he_mediumshell",
+const minSpeed = 0.1
 
-    "createbigcannons:ap_shell", // APHE
-    "cbcmodernwarfare:aphe_mediumshell",
+const counters = {
+    // AP
+    "createbigcannons:shot" :       {type: "kinetic", deviate: 0.4}, 
+    "createbigcannons:shot" :       {type: "kinetic", deviate: 0.4}, 
 
-    "cbcmodernwarfare:hefrag_shell", // HEF
-    "cbcmodernwarfare:hef_mediumshell",
+    // HE
+    "createbigcannons:he_shell" :       {type: "chemical"}, 
+    "cbcmodernwarfare:he_mediumshell" : {type: "chemical"},
 
-    "cbcmodernwarfare:heap_shell", // HEAT
-    "cbcmodernwarfare:heap_mediumshell", 
+    // APHE
+    "createbigcannons:ap_shell" :         {type: "chemical"}, 
+    "cbcmodernwarfare:aphe_mediumshell" : {type: "chemical"},
 
-    "createbigcannons:shrapnel_shell", // Shrapnel
-    "canister_mediumshell", // Canister
+    // HE-F
+    "cbcmodernwarfare:hefrag_shell" :    {type: "chemical"},
+    "cbcmodernwarfare:hef_mediumshell" : {type: "chemical"},
 
-    "createbigcannons:smoke_shell", // Smoke
-    "cbcmodernwarfare:smoke_mediumshell" ,
+    // HEAT
+    "cbcmodernwarfare:heap_shell" :       {type: "chemical"}, 
+    "cbcmodernwarfare:heap_mediumshell" : {type: "chemical"},
 
-    "apkws",
-    "agm114m",
-    "agm114b",
-    "katyusha",
-    "katyusha",
-    "tow2a",
-    "tow2b",
-    "towbb"
-]
+    // Shrapnel
+    "createbigcannons:shrapnel_shell" : {type: "kinetic", deviate: 0.4},
+    
+    // Canister
+    "cbcmodernwarfare:canister_mediumshell" : {type: "chemical"}, 
 
-const stored_cooldowns = {}
-function since(pos_id) {
-    const last_fired = stored_cooldowns[pos_id] || 0
-    return (Date.now() - last_fired) / 1000
+    // Smoke
+    "createbigcannons:smoke_shell" :       {type: "kinetic", deviate: 0.4},
+    "cbcmodernwarfare:smoke_mediumshell" : {type: "kinetic", deviate: 0.4},
+    
+    // Rockets
+    "apkws" :   {type: "chemical"},
+    "katyusha" :{type: "chemical"},
+    
+    // AGMs
+    "agm114m" : {type: "chemical"},
+    "agm114b" : {type: "chemical"},
+
+    // ATGMs
+    "tow2a" :   {type: "chemical"},
+    "tow2b" :   {type: "chemical"},
+    "towbb" :   {type: "chemical"},
 }
 
 const half_width = width / 2
@@ -57,6 +72,23 @@ function isProjectile(type) {
     return false
 }
 
+function tryKill(counter, entity) {    
+    if (counter.type == "chemical") {
+        entity.kill()
+    } else if (counter.type == "kinetic") {
+        let motionX = entity.getMotionX()
+        let motionY = entity.getMotionY()
+        let motionZ = entity.getMotionZ()
+        let deviateMult = counter.deviate
+
+        entity.setMotion(
+            motionX * (1 - deviateMult) + (Math.random() * deviateMult * 2),
+            motionY * (1 - deviateMult) + (Math.random() * deviateMult * 2),
+            motionZ * (1 - deviateMult) + (Math.random() * deviateMult * 2)
+        )
+    }
+}
+
 function detect(block) { // gets the entities within range & formats them
     const {x, y, z} = block
     const box = AABB.of(x-half_width, y-under, z-half_width, x+half_width, y+over, z+half_width)
@@ -69,11 +101,14 @@ function detect(block) { // gets the entities within range & formats them
             
         var type = entity.type
         var uuid = entity.uuid
-
+        
         if (isProjectile(type)) {
             projectiles.push({
                 uuid : uuid.toString(),
-                type : type
+                type : type,
+                x : entity.x,
+                y : entity.y,
+                z : entity.z
             })
         }
     }
@@ -81,114 +116,150 @@ function detect(block) { // gets the entities within range & formats them
     return projectiles
 }
 
-const aps_ammunitions = {}
+function intercept(block, uuid) {
+    var entity = block.level.getEntity(uuid)
+    if (!entity) { return "No entity found" }
+
+    const type = entity.type
+    if (!isProjectile(type)) { return "Not a projectile" }
+    
+    // APS ammo
+    const ammo = block.entityData.data.getInt('charges')
+    if (ammo <= 0) { return "APS not loaded" }
+
+    const entities = detect(block)
+
+    var found = false
+    for (const e in entities) {
+        if (entities[e].uuid == uuid) {
+            found = true
+            break
+        }
+    }
+        
+    if (!found) { return "Too far" }
+
+    let speed = entity.deltaMovement.lengthSqr()
+    if (speed < minSpeed) { return 'Too slow'}
+    
+    let cooldown = block.getEntityData().data.getInt('cooldown')
+    if (cooldown > 0) { return "Cooling down" }
+    
+    // APS ammo usage + cooldown
+    block.entityData.data.putInt('charges', ammo - 1)
+    block.entityData.data.putInt('cooldown', shootingCooldown * 20)
+
+    // APS effects
+    block.level.runCommandSilent(`particle createbigcannons:flak_cloud ${entity.x} ${entity.y} ${entity.z} 0 0 0 0 1 force`)
+    block.level.runCommandSilent(`playsound createbigcannons:shell_explosion neutral @a ${entity.x} ${entity.y} ${entity.z} 2.0 1.5 0.5`)
+    
+    let counter = counters[type] || counters[entity.missileId || '']
+    
+    if (counter && (speed < maxSpeed)) {
+        tryKill(counter, entity)
+    }
+    
+    return 'Hit!'
+}
 
 ComputerCraftEvents.peripheral(event => {
-    const BlockId = "kubejs:active_protection_system"
+    const variants = ['desert', 'parade', 'snow', '4bo', 'grizzly', 'gravel']
+    const BlocksIds = []
+    variants.forEach(value => {BlocksIds.push("kubejs:active_protection_system_"+value)})
+
     const PeripheralName = "aps"
 
-    event.registerPeripheral(PeripheralName, BlockId)
-    .method("ammoCount", (block) => {
-        const {x, y, z} = block
-        const pos_id = x+' '+y+' '+z
-        return aps_ammunitions[pos_id] || 0
+    event.registerComplexPeripheral(PeripheralName, Block => {return BlocksIds.includes(Block.getId())})
+    .mainThreadMethod("getCharges", (block) => {
+        return block.entityData.data.getInt('charges')
     })
     .method("detect", (block) => {
         return detect(block)
-    }).mainThreadMethod("shoot", (block, d, args) => {
+    }).mainThreadMethod("intercept", (block, d, args) => {
         const uuid = args[0].toString()
         if (!uuid) { return "No uuid given" }
-
-        var entity = block.level.getEntity(uuid)
-        if (!entity) { return "No entity found" }
-
-        const type = entity.type
-        if (!isProjectile(type)) { return "Not a projectile" }
-
-        const {x, y, z} = block
-        const pos_id = x+' '+y+' '+z
-        const ammo = aps_ammunitions[pos_id] || 0
-        if (ammo <= 0) { return "APS not loaded" }
-
-        const entities = detect(block)
-
-        var found = false
-        for (const e in entities) {
-            if (entities[e].uuid == uuid) {
-                found = true
-                break
-            }
-        }
-        
-        if (!found) { return "Too far" }
-
-        if (since(pos_id) < cooldown) { return "Cooling down" }
-        
-        stored_cooldowns[pos_id] = Date.now()
-        aps_ammunitions[pos_id] = ammo - 1
-
-        block.level.runCommandSilent(`particle createbigcannons:flak_cloud ${entity.x} ${entity.y} ${entity.z} 0 0 0 0 1 force`)
-        block.level.runCommandSilent(`playsound createbigcannons:shell_explosion neutral @a ${entity.x} ${entity.y} ${entity.z} 2.0 1.5 0.5`)
-
-        const speed = entity.deltaMovement.lengthSqr()
-        const deathOnShot = (target_shells.includes(type) && (speed < maxSpeed)) || (target_shells.includes(entity.missileId))
-        if (deathOnShot) { entity.kill() }
-        
-        return 'Hit!'
-    }).method("getCooldownLeft", (block) => {
-        const {x, y, z} = block
-        const pos_id = x+' '+y+' '+z
-        
-        const timeLeft = cooldown - since(pos_id)
-        if (timeLeft < 0) { return 0 }
-
-        return timeLeft
+        return intercept(block, uuid)
+    }).mainThreadMethod("getCooldown", (block) => {
+        return block.getEntityData().data.getInt('cooldown')
     })
 })
 
-StartupEvents.registry("block", (event) => {
-    event.create("active_protection_system", "cardinal")
-    .displayName("Trophy (APS)")
+function Register(event, display_variant, variant) {
+    event.create("active_protection_system_"+variant, "cardinal")
+    .displayName(display_variant+" Trophy (APS)")
     .soundType("stone")
     .resistance(15.0)
 
     .renderType('cutout')
     .viewBlocking(true)
     .fullBlock(false)
-
-    .model('kubejs:block/active_protection_system')
     
-    .box(1, 0, 1, 15, 23, 15)
+    .model("kubejs:block/aps_"+variant)
+
+    .box(1, 0, 1, 15, 13, 15)
 
     .rightClick(event => {
-        const { player, level, item, block, hand } = event
+        const { player, item, block } = event
 
         if (item.id !== 'kubejs:aps_charge') { return }
         
         if (player.cooldowns.isOnCooldown(item.item)) { return }
-        player.cooldowns.addCooldown(item.item, 20 * 5)
+        player.cooldowns.addCooldown(item.item, 20 * loadingCooldown)
         
         const {x, y, z} = block
-        const pos_id = x+' '+y+' '+z
-        const ammo_count = aps_ammunitions[pos_id] || 0
+        const charges = block.entityData.data.getInt('charges')
 
-        if (ammo_count >= 2) { return }
+        if (charges >= maxCharges) { return }
         
+        // transfer charge to APS
         item.count--
-        aps_ammunitions[pos_id] = ammo_count + 1
+        block.entityData.data.putInt('charges', charges+1)
 
-        console.log(aps_ammunitions, pos_id)
-
+        // reload sound effect
         block.level.runCommandSilent(`playsound combatgear:smokegrenadelaunch neutral @a ${x} ${y} ${z} 2.0 1.5 0.5`)
-        
-        // block.entityData.putInt('charges', 1)
-
-        event.cancel()
     })
-
+    
     .item(item => {
         item.tooltip(Text.of('§8Detects & intercepts incoming projectiles'))
     })
+
+    .blockEntity(event => {        
+        event.initialData({
+            charges: 0,
+            cooldown: shootingCooldown * 20
+        })
+        
+        event.tick(ticked => {
+            let block = ticked.getBlock()
+            
+            const redstonePower = block.level.getBestNeighborSignal(block.pos)
+
+            if (redstonePower > 0) {
+                let projectiles = detect(block)
+
+                projectiles.forEach(proj => {
+                    intercept(block, proj.uuid)
+                })
+            }
+
+            let cooldown = block.entityData.data.getInt('cooldown')
+            if (cooldown > 0) {
+                cooldown--
+                if (cooldown < 0 ){ cooldown = 0 }
+                block.entityData.data.putInt('cooldown', cooldown)
+            }
+        })
+    })
+}
+
+StartupEvents.registry("block", (event) => {
+    Register(event, 'Desert', 'desert')
+    Register(event, 'Parade', 'parade')
+    Register(event, 'Snow', 'snow')
+    Register(event, '4BO', '4bo')
+    Register(event, 'Charcoal', 'charcoal')
+    Register(event, 'Grizzly', 'grizzly')
+    Register(event, 'Gravel', 'gravel')
 })
 
 StartupEvents.registry('item', event => {

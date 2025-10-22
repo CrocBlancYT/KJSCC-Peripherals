@@ -1,2 +1,8 @@
-Thanks to Vicky for the APS model and texturing (version 1.3)
-Thanks to Itzcakus for the APS model and variants (version 1.4)
+Big thanks to:
+
+1.3)
+Vicky for the APS model and texturing
+
+1.4)
+Itzcakus for the APS model and variants
+TechTastic for the Quaternion API

@@ -11,6 +11,8 @@ const spalling_projectiles = [
 let shrapnel_spread = 2.0
 let shrapnel_count = 10
 
+let CANNON_BURST = CBCModernWarfareEntityTypes.CANISTER_BURST.get()
+
 function spalling(shell) {
     let level = shell.level
     let pos = shell.position()
@@ -20,15 +22,13 @@ function spalling(shell) {
     CBCProjectileBurst.spawnConeBurst(level, CANNON_BURST, pos, oldDelta, shrapnel_count, shrapnel_spread)
 }
 
-let CANNON_BURST = CBCModernWarfareEntityTypes.CANISTER_BURST.get()
 let spalledEntites = new Map()
 
 ServerEvents.tick(event => {
     let server = event.server
     let level = server.overworld()
 
-    // if (level.time % 3 !== 0) return // every 3 ticks
-    if (level.time % 20 !== 0) return // every 20 ticks
+    if (level.time % 3 !== 0) return // every 3 ticks
 
     let cannonProjectiles = level.entities.filter(entity => 
         spalling_projectiles.includes(entity.type)
